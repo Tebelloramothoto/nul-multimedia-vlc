@@ -9,14 +9,13 @@ pygame.mixer.init()
 # Create the main application window
 root = Tk()
 root.title("MY Player Audio Player")
-root.geometry("600x200")  # Resize for better layout
+root.geometry("800x400")  # Set default size, will adjust to screen size
 root.configure(bg="#f0f0f0")  # Light background color like the image
 
 # Global variables for audio
 current_audio = None
 is_paused = False
 total_length = 0
-current_pos = 0  # Track current position when paused
 current_index = 0  # Track the current song index in the playlist
 
 # Function to format time in minutes:seconds
@@ -33,23 +32,20 @@ def add_audio():
         playlist_box.media_list.append(filename)  # Add to the media list
 
 # Function to play or resume selected audio file from the playlist
-def play_audio(selected_index=None):
-    global current_audio, is_paused, total_length, current_pos, current_index
+def play_audio():
+    global current_audio, is_paused, total_length, current_index
     
-    if selected_index is not None:
-        current_index = selected_index
-    selected = playlist_box.curselection() if selected_index is None else (current_index,)  # Get the selected item from the playlist
-
+    selected = playlist_box.curselection()  # Get the selected item from the playlist
     if selected:
         if not is_paused:  # If not paused, play the selected file
-            current_audio = playlist_box.media_list[selected[0]]  # Get the selected audio file path
+            current_index = selected[0]  # Update the current index to selected index
+            current_audio = playlist_box.media_list[current_index]  # Get the selected audio file path
             pygame.mixer.music.load(current_audio)  # Load the selected audio
             pygame.mixer.music.play(loops=0)  # Start playing the audio
             total_length = pygame.mixer.Sound(current_audio).get_length()  # Get the total duration of the audio
             total_time_label.config(text=f" / {format_time(total_length)}")  # Update the total time label
-            current_pos = 0  # Reset current position when a new audio file is played
             update_progress_bar()  # Start updating the progress bar
-            root.after(1000, check_if_done)  # Check if the song has finished playing
+            check_if_done()  # Start checking if the song has finished playing
         else:
             pygame.mixer.music.unpause()  # Resume playing the audio
             is_paused = False  # Reset the paused state
@@ -57,19 +53,18 @@ def play_audio(selected_index=None):
 
 # Function to pause the audio
 def pause_audio():
-    global is_paused, current_pos
+    global is_paused
     if not is_paused:  # If audio is currently playing
         pygame.mixer.music.pause()  # Pause the currently playing audio
-        current_pos = pygame.mixer.music.get_pos() // 1000  # Record the current playback position in seconds
         is_paused = True  # Set the paused state to True
 
 # Function to stop the audio
 def stop_audio():
-    global current_pos
+    global is_paused
     pygame.mixer.music.stop()  # Stop the currently playing audio
     progress_bar['value'] = 0  # Reset the progress bar
     current_time_label.config(text="00:00")  # Reset the current time display
-    current_pos = 0  # Reset the current position
+    is_paused = False  # Reset the paused state
 
 # Function to go to the next track
 def next_audio():
@@ -78,7 +73,9 @@ def next_audio():
         current_index += 1
     else:
         current_index = 0  # Loop back to the first track
-    play_audio(current_index)  # Play the next track
+    playlist_box.select_clear(0, END)  # Clear previous selection
+    playlist_box.select_set(current_index)  # Select the new track
+    play_audio()  # Play the next track
 
 # Function to go to the previous track
 def prev_audio():
@@ -87,12 +84,16 @@ def prev_audio():
         current_index -= 1
     else:
         current_index = len(playlist_box.media_list) - 1  # Loop back to the last track
-    play_audio(current_index)  # Play the previous track
+    playlist_box.select_clear(0, END)  # Clear previous selection
+    playlist_box.select_set(current_index)  # Select the new track
+    play_audio()  # Play the previous track
 
 # Function to check if the current audio has finished playing
 def check_if_done():
-    if not pygame.mixer.music.get_busy() and not is_paused:
-        next_audio()  # Automatically play the next audio when the current one finishes
+    if not pygame.mixer.music.get_busy():
+        next_audio()  # Automatically play the next audio when the current one ends
+    else:
+        root.after(1000, check_if_done)  # Keep checking every second if the audio has ended
 
 # Function to update the progress bar and time labels
 def update_progress_bar():
@@ -102,7 +103,7 @@ def update_progress_bar():
         progress_bar['value'] = progress_percentage  # Update the progress bar value
         current_time_label.config(text=format_time(current_pos))  # Update the current time label
         root.after(1000, update_progress_bar)  # Call this function every second
-    elif not is_paused:
+    else:
         progress_bar['value'] = 0  # Reset the progress bar
         current_time_label.config(text="00:00")  # Reset the current time label
 
@@ -118,8 +119,11 @@ class MediaListbox(Listbox):
         super().__init__(*args, **kwargs)
         self.media_list = []
 
-playlist_box = MediaListbox(root, selectmode=SINGLE, width=50, height=5, bg="#3c3c3c", fg="white", selectbackground="#666666")
-playlist_box.pack(pady=10)
+playlist_frame = Frame(root)
+playlist_frame.pack(fill=BOTH, expand=True)  # Allow the frame to expand
+
+playlist_box = MediaListbox(playlist_frame, selectmode=SINGLE, bg="#3c3c3c", fg="white", selectbackground="#666666")
+playlist_box.pack(fill=BOTH, expand=True, pady=10, padx=10)  # Make the playlist box fill the screen and expand
 
 # Control Buttons for Media
 controls_frame = Frame(root, bg="#f0f0f0")  # Frame to hold the control buttons
@@ -159,3 +163,4 @@ Button(root, text="➕ Add Audio", command=add_audio, bg="#4caf50", fg="white").
 
 # Start the Tkinter event loop
 root.mainloop()
+
