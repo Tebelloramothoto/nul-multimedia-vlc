@@ -17,6 +17,7 @@ current_audio = None
 is_paused = False
 total_length = 0
 current_pos = 0  # Track current position when paused
+current_index = 0  # Track the current song index in the playlist
 
 # Function to format time in minutes:seconds
 def format_time(seconds):
@@ -32,10 +33,13 @@ def add_audio():
         playlist_box.media_list.append(filename)  # Add to the media list
 
 # Function to play or resume selected audio file from the playlist
-def play_audio():
-    global current_audio, is_paused, total_length, current_pos
+def play_audio(selected_index=None):
+    global current_audio, is_paused, total_length, current_pos, current_index
     
-    selected = playlist_box.curselection()  # Get the selected item from the playlist
+    if selected_index is not None:
+        current_index = selected_index
+    selected = playlist_box.curselection() if selected_index is None else (current_index,)  # Get the selected item from the playlist
+
     if selected:
         if not is_paused:  # If not paused, play the selected file
             current_audio = playlist_box.media_list[selected[0]]  # Get the selected audio file path
@@ -45,6 +49,7 @@ def play_audio():
             total_time_label.config(text=f" / {format_time(total_length)}")  # Update the total time label
             current_pos = 0  # Reset current position when a new audio file is played
             update_progress_bar()  # Start updating the progress bar
+            root.after(1000, check_if_done)  # Check if the song has finished playing
         else:
             pygame.mixer.music.unpause()  # Resume playing the audio
             is_paused = False  # Reset the paused state
@@ -65,6 +70,29 @@ def stop_audio():
     progress_bar['value'] = 0  # Reset the progress bar
     current_time_label.config(text="00:00")  # Reset the current time display
     current_pos = 0  # Reset the current position
+
+# Function to go to the next track
+def next_audio():
+    global current_index
+    if current_index < len(playlist_box.media_list) - 1:
+        current_index += 1
+    else:
+        current_index = 0  # Loop back to the first track
+    play_audio(current_index)  # Play the next track
+
+# Function to go to the previous track
+def prev_audio():
+    global current_index
+    if current_index > 0:
+        current_index -= 1
+    else:
+        current_index = len(playlist_box.media_list) - 1  # Loop back to the last track
+    play_audio(current_index)  # Play the previous track
+
+# Function to check if the current audio has finished playing
+def check_if_done():
+    if not pygame.mixer.music.get_busy() and not is_paused:
+        next_audio()  # Automatically play the next audio when the current one finishes
 
 # Function to update the progress bar and time labels
 def update_progress_bar():
@@ -96,12 +124,12 @@ playlist_box.pack(pady=10)
 # Control Buttons for Media
 controls_frame = Frame(root, bg="#f0f0f0")  # Frame to hold the control buttons
 
-# Play, pause, stop, forward, backward buttons
-Button(controls_frame, text="⏮", bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Backward (not yet implemented)
+# Previous, play/pause, stop, next buttons
+Button(controls_frame, text="⏮", command=prev_audio, bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Previous
 Button(controls_frame, text="⏯", command=play_audio, bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Play/resume
 Button(controls_frame, text="⏸", command=pause_audio, bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Pause
 Button(controls_frame, text="⏹", command=stop_audio, bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Stop
-Button(controls_frame, text="⏭", bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Forward (not yet implemented)
+Button(controls_frame, text="⏭", command=next_audio, bg="#e0e0e0", fg="black", width=3).pack(side=LEFT, padx=3)  # Next
 
 controls_frame.pack(side=TOP, pady=5)
 
@@ -122,7 +150,7 @@ volume_frame = Frame(root, bg="#f0f0f0")
 volume_label = Label(volume_frame, text="85%", bg="#f0f0f0", fg="black")
 volume_label.pack(side=RIGHT, padx=5)
 volume_slider = Scale(volume_frame, from_=0, to=100, orient=HORIZONTAL, command=set_volume, bg="#f0f0f0")
-volume_slider.set(300)  # Set default volume to 85%
+volume_slider.set(85)  # Set default volume to 85%
 volume_slider.pack(side=RIGHT)
 volume_frame.pack(side=BOTTOM, pady=10)
 
